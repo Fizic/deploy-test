@@ -1,0 +1,19 @@
+domain: quximo.com
+
+gitlab:
+  enabled: true
+  source:
+    repoURL: https://charts.gitlab.io/
+    targetRevision: 8.6.0
+
+keycloak:
+  enabled: true
+  source:
+    repoURL: https://charts.bitnami.com/bitnami
+    targetRevision: 24.1.0
+
+vault:
+  enabled: true
+  source:
+    repoURL: https://helm.releases.hashicorp.com
+    targetRevision: 0.29.1

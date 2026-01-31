@@ -1,0 +1,45 @@
+{{- if .Values.vault.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.vault.source.repoURL }}
+    chart: vault
+    targetRevision: {{ .Values.vault.source.targetRevision }}
+    helm:
+      values: |
+        server:
+          ingress:
+            enabled: true
+            ingressClassName: nginx
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+            hosts:
+              - host: vault.{{ .Values.domain }}
+            tls:
+              - secretName: vault-tls
+                hosts:
+                  - vault.{{ .Values.domain }}
+          dataStorage:
+            enabled: true
+            size: 10Gi
+            storageClass: standard # Or leave empty for default
+        ui:
+          enabled: true
+          serviceType: ClusterIP
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vault
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}

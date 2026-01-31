@@ -1,0 +1,42 @@
+{{- if .Values.keycloak.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.keycloak.source.repoURL }}
+    chart: keycloak
+    targetRevision: {{ .Values.keycloak.source.targetRevision }}
+    helm:
+      values: |
+        ingress:
+          enabled: true
+          ingressClassName: nginx
+          hostname: keycloak.{{ .Values.domain }}
+          annotations:
+            cert-manager.io/cluster-issuer: letsencrypt-prod
+          tls: true
+          extraTls:
+            - hosts:
+                - keycloak.{{ .Values.domain }}
+              secretName: keycloak-tls
+        auth:
+          adminUser: admin
+          # adminPassword: "changeMe123!" # Optional: Set a fixed password or use existingSecret
+        # production: true # Enable for production (caching, etc)
+        proxy: edge # Important for running behind Ingress/TLS termination
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keycloak
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}
