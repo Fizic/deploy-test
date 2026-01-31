@@ -15,5 +15,5 @@ keycloak:
 vault:
   enabled: true
   source:
-    repoURL: https://helm.releases.hashicorp.com
-    targetRevision: 0.29.1
+    repoURL: https://github.com/hashicorp/vault-helm.git
+    targetRevision: v0.29.1

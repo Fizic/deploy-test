@@ -10,7 +10,7 @@ spec:
   project: default
   source:
     repoURL: {{ .Values.vault.source.repoURL }}
-    chart: vault
+    path: .
     targetRevision: {{ .Values.vault.source.targetRevision }}
     helm:
       values: |
