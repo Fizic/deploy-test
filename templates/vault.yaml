@@ -29,7 +29,7 @@ spec:
           dataStorage:
             enabled: true
             size: 10Gi
-            # storageClass: standard # Removed to use cluster default
+            storageClass: local
         ui:
           enabled: true
           serviceType: ClusterIP
