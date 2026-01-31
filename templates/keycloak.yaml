@@ -10,7 +10,7 @@ spec:
   project: default
   source:
     repoURL: {{ .Values.keycloak.source.repoURL }}
-    chart: keycloak
+    path: bitnami/keycloak
     targetRevision: {{ .Values.keycloak.source.targetRevision }}
     helm:
       values: |
