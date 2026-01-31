@@ -26,6 +26,8 @@ spec:
                 - keycloak.{{ .Values.domain }}
               secretName: keycloak-tls
         global:
+          security:
+            allowInsecureImages: true
           image:
             registry: public.ecr.aws
         image:
@@ -35,7 +37,7 @@ spec:
           image:
             registry: public.ecr.aws
             repository: bitnami/postgresql
-            tag: 17
+            tag: "17"
         auth:
           adminUser: admin
           # adminPassword: "changeMe123!" # Optional: Set a fixed password or use existingSecret
