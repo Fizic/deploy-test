@@ -16,7 +16,7 @@ spec:
       values: |
         global:
           hosts:
-            domain: {{ .Values.domain }}
+            domain: gitlab.{{ .Values.domain }}
             https: true
           ingress:
             configureCertmanager: false
