@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - 01-metallb/application.yaml
+  - 02-ingress-nginx/application.yaml
+  - 03-cert-manager/application.yaml
+  - 03-cert-manager/issuer.yaml
+  - 04-openebs/application.yaml
+  - 04-openebs/rbac.yaml
+  - 05-keycloak/application.yaml
+  - 06-vault/application.yaml
+  - 07-gitlab/application.yaml
+  - 08-prometheus-grafana/application.yaml
+  - 09-elastic-stack/application.yaml
+  - 10-jaeger/application.yaml
+  - 11-docmost/application.yaml
+  - 11-docmost/manifests.yaml
+  - 12-plane/application.yaml
+  - 12-plane/manifests.yaml

@@ -14,6 +14,7 @@ spec:
     repoURL: {{ .Values.argocd.source.repoURL | quote }}
     targetRevision: HEAD
     path: apps
+    kustomize: {}
   destination:
     server: {{ .Values.argocd.destination.server | default "https://kubernetes.default.svc" | quote }}
     namespace: {{ .Values.argocd.namespace | default "argocd" }}
