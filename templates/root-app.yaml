@@ -11,7 +11,7 @@ metadata:
 spec:
   project: infrastructure
   source:
-    repoURL: {{ .Values.spec.source.repoURL | default "https://github.com/Fizic/infrastructure-gitops.git" }}
+    repoURL: {{ .Values.spec.source.repoURL | default "https://github.com/Fizic/deploy-test.git" }}
     targetRevision: HEAD
     path: apps
   destination:

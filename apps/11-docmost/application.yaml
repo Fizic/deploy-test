@@ -11,7 +11,7 @@ metadata:
 spec:
   project: infrastructure
   source:
-    repoURL: https://github.com/Fizic/infrastructure-gitops.git
+    repoURL: https://github.com/Fizic/deploy-test.git
     targetRevision: HEAD
     path: apps/11-docmost
   destination:
