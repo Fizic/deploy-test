@@ -1,0 +1,42 @@
+# Docmost Application
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: docmost
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: docmost
+    app.kubernetes.io/part-of: services
+spec:
+  project: services
+  source:
+    repoURL: https://github.com/docmost/helm-charts
+    targetRevision: "main"
+    path: charts/docmost
+    ref: main
+    helm:
+      valueFiles:
+        - values.yaml
+      ignoreMissingValueFiles: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: docmost
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 10m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

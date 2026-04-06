@@ -1,0 +1,46 @@
+# Plane Application
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: plane
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: plane
+    app.kubernetes.io/part-of: services
+spec:
+  project: services
+  source:
+    repoURL: https://plane.github.io/helm-charts
+    chart: plane
+    targetRevision: "2.*"
+    helm:
+      valueFiles:
+        - values.yaml
+      ignoreMissingValueFiles: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: plane
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 30m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/replicas

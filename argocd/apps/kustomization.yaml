@@ -1,0 +1,10 @@
+# ArgoCD Apps Kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - core/infrastructure.yaml
+  - core/monitoring.yaml
+  - core/services.yaml
+
+namespace: argocd

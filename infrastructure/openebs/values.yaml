@@ -1,0 +1,148 @@
+# OpenEBS Configuration
+# Helm chart: https://openebs.github.io/dynamic-localpv-provisioner/
+# Documentation: https://openebs.io/docs/
+
+release:
+  version: "3.9.0"
+
+namespace: openebs
+
+imagePullSecrets: []
+
+# Local PV Provisioner
+localpv-provisioner:
+  enabled: true
+  image:
+    provisioner: openebs/provisioner-localpv
+    version: 3.9.0
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  healthCheck:
+    initialDelaySeconds: 30
+    failureThreshold: 5
+    periodSeconds: 10
+
+# Analytics
+analytics:
+  enabled: true
+  pinger: false
+
+# OpenEBS Dashboard
+dashboard:
+  enabled: false
+
+# NDM (Node Disk Manager)
+ndm:
+  enabled: true
+  image:
+    repository: openebs/node-disk-manager
+    tag: 2.1.0
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
+  healthCheck:
+    initialDelaySeconds: 30
+    failureThreshold: 3
+    periodSeconds: 10
+  sparse:
+    enabled: false
+    size: 10737418240
+    path: /var/openebs/sparse
+  filterConfigs:
+    - key: path
+      value: /var/openebs
+    - key: vendor
+      value: ""
+  nodeSelector: {}
+
+# NDM Operator
+ndmOperator:
+  enabled: true
+  image:
+    repository: openebs/node-disk-operator
+    tag: 2.1.0
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
+
+# Storage Classes
+storageClasses:
+  - name: openebs-hostpath
+    enabled: true
+    isDefaultClass: true
+    storageType: hostpath
+    hostpathType: Directory
+    path: /var/openebs/hostpath
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    volumeBindingMode: WaitForFirstConsumer
+    metadata:
+      annotations:
+        storageclass.kubernetes.io/is-default-class: "true"
+    provisioner: openebs.io/local
+    status: managed
+
+  - name: openebs-device
+    enabled: false
+    storageType: device
+    deviceType: block
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    volumeBindingMode: WaitForFirstConsumer
+    metadata:
+      annotations: {}
+    provisioner: openebs.io/local
+    status: managed
+
+# Policies
+policy:
+  imagePullSecrets:
+    enabled: false
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  priorityClass:
+    enabled: false
+    value: system-cluster-critical
+
+# Service Account
+serviceAccount:
+  create: true
+  name: openebs-maya-operator
+
+# Resources
+resources:
+  enabled: false
+
+# tolerations
+tolerations:
+  enabled: false
+  all:
+    - key: "node.kubernetes.io/not-ready"
+      operator: "Exists"
+      effect: "NoExecute"
+      tolerationSeconds: 300
+    - key: "node.kubernetes.io/unreachable"
+      operator: "Exists"
+      effect: "NoExecute"
+      tolerationSeconds: 300
+
+# affinity
+affinity:
+  enabled: false

@@ -1,0 +1,465 @@
+# GitLab Helm Chart Values
+# Helm chart: gitlab/gitlab
+# Documentation: https://docs.gitlab.com/charts/
+
+namespace: gitlab
+
+global:
+  # Domain configuration
+  hosts:
+    domain: demo.quximo.com
+    externalIP: 192.168.100.110
+    https: true
+    tls:
+      enabled: true
+      secretName: gitlab-tls
+      certSecretClass: ""
+    gitlab:
+      name: gitlab.demo.quximo.com
+      https: true
+    registry:
+      name: registry.demo.quximo.com
+      https: true
+    minio:
+      name: minio.demo.quximo.com
+      https: true
+    kas:
+      name: kas.demo.quximo.com
+      https: true
+
+  # Ingress class
+  ingress:
+    class: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/proxy-body-size: "250m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+      nginx.ingress.kubernetes.io/proxy-buffering: "off"
+      nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+      nginx.ingress.kubernetes.io/configuration-snippet: |
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    provider: nginx
+    enabled: true
+    tls:
+      enabled: true
+      secretName: gitlab-tls
+    pathType: Prefix
+
+  # PostgreSQL
+  psql:
+    host: postgresql.gitlab.svc.cluster.local
+    port: 5432
+    database: gitlabhq_production
+    username: gitlab
+    password:
+      secret: gitlab-db-secret
+      key: password
+    preparedStatements: true
+    maxConnections: 500
+
+  # Redis
+  redis:
+    host: redis.gitlab.svc.cluster.local
+    port: 6379
+    password:
+      secret: gitlab-redis-secret
+      key: redis-password
+    authEnabled: true
+
+  # Storage class
+  storageClass: openebs-hostpath
+
+  # Service account
+  serviceAccount:
+    enabled: true
+    create: true
+    name: gitlab
+
+  # Shell (gitlab-workhorse)
+  webservice:
+    objectStorage:
+      config:
+        secret: gitlab-object-storage
+        key: config
+
+  # Gitaly
+  gitaly:
+    enabled: true
+    persistence:
+      storageClass: openebs-hostpath
+      size: 50Gi
+    podLabels:
+      app: gitaly
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+  # Praefect (Gitaly cluster)
+  # Not enabled for single-node setup
+
+  # Migration timeout
+  migration:
+    timeout: 3600
+
+# GitLab webservice configuration
+gitlab:
+  webservice:
+    enabled: true
+    replicas: 2
+    maxReplicas: 10
+    minReplicas: 2
+    service:
+      type: ClusterIP
+    resources:
+      requests:
+        cpu: 300m
+        memory: 1.5Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+    health_checks:
+      startup:
+        enabled: true
+        failureThreshold: 30
+        periodSeconds: 10
+      readiness:
+        enabled: true
+        initialDelaySeconds: 30
+        periodSeconds: 10
+      liveness:
+        enabled: true
+        initialDelaySeconds: 60
+        periodSeconds: 30
+    deployment:
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxSurge: 1
+          maxUnavailable: 0
+
+# GitLab task-runner (for CI jobs)
+gitlab:
+  task-runner:
+    enabled: true
+    replicas: 1
+    persistence:
+      enabled: true
+      storageClass: openebs-hostpath
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+# GitLab sidekiq
+gitlab:
+  sidekiq:
+    enabled: true
+    replicas: 2
+    maxReplicas: 5
+    minReplicas: 1
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+    shutdown:
+      timeout: 300
+
+# GitLab shell (gitlab-workhorse)
+gitlab:
+  gitlab-shell:
+    enabled: true
+    replicas: 2
+    minReplicas: 1
+    maxReplicas: 5
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    service:
+      type: ClusterIP
+
+# Registry
+registry:
+  enabled: true
+  replicas: 2
+  certificate:
+    secret: gitlab-registry-certs
+  storage:
+    secret: gitlab-object-storage
+    key: registry
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: true
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/proxy-body-size: "5m"
+    tls:
+      enabled: true
+      secretName: registry-tls
+
+# GitLab KAS (Kubernetes Agent Server)
+gitlab:
+  kas:
+    enabled: true
+    replicas: 2
+    minReplicas: 1
+    maxReplicas: 5
+    service:
+      type: ClusterIP
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    ingress:
+      enabled: true
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      tls:
+        enabled: true
+        secretName: kas-tls
+
+# MinIO (Object Storage)
+minio:
+  enabled: true
+  replicas: 4
+  persistence:
+    enabled: true
+    storageClass: openebs-hostpath
+    size: 50Gi
+    accessMode: ReadWriteOnce
+  service:
+    type: ClusterIP
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+  ingress:
+    enabled: true
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    tls:
+      enabled: true
+      secretName: minio-tls
+
+# Postgresql
+postgresql:
+  enabled: true
+  image:
+    tag: 15.7.0
+  primary:
+    persistence:
+      enabled: true
+      storageClass: openebs-hostpath
+      size: 50Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+    service:
+      type: ClusterIP
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring
+  backup:
+    enabled: false
+
+# Redis
+redis:
+  enabled: true
+  image:
+    tag: 7.2.4
+  cluster:
+    enabled: false
+  persistence:
+    enabled: true
+    storageClass: openebs-hostpath
+    size: 10Gi
+  master:
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring
+
+# Prometheus metrics exporter
+gitlab:
+  unicorn:
+    enabled: false
+
+  exporter:
+    enabled: true
+    user: ""
+    password: ""
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        namespace: monitoring
+
+# GitLab Runner
+gitlab:
+  runner:
+    install: false  # Install separately with gitlab-runner chart
+
+# GitLab Unicorn (migrated to webservice)
+gitlab:
+  unicorn:
+    enabled: false
+
+# Nginx Ingress
+nginx-ingress:
+  enabled: false  # Using external ingress-nginx
+
+# Cert-manager
+certmanager:
+  install: false  # Using external cert-manager
+
+# GitLab Alertmanager
+gitlab:
+  alertmanager:
+    enabled: false
+
+# GitLab Grafana
+grafana:
+  enabled: false
+
+# GitLab Prometheus
+prometheus:
+  enabled: false
+
+# Spamcheck
+gitlab:
+  spamcheck:
+    enabled: false
+
+# SRA
+gitlab:
+  sra:
+    enabled: false
+
+# Deprecation notices
+deprecation:
+  ignored: []
+
+# Extra environment variables
+gitlab:
+  gitaly:
+    env:
+      - name: GITALY_MEMORY_LIMIT
+        value: "2G"
+      - name: GITALY_OPENSSH_TIMEOUT
+        value: "30"
+  webservice:
+    env:
+      - name: GITLAB_WORKHORSE_TIMEOUT
+        value: "3600"
+      - name: GITLAB_WORKHORSE_LOG_FORMAT
+        value: "json"
+      - name: GITLAB_UNICORN_WORKER_PROCESSES
+        value: "8"
+
+# Security context
+pod:
+  securityContext:
+    enabled: true
+    fsGroup: 1000
+    runAsUser: 1000
+    runAsGroup: 1000
+  containerSecurityContext:
+    enabled: true
+    sysctls:
+      - name: "net.ipv4.ping_group_range"
+        value: "1000 1000"
+
+# Node selector
+nodeSelector:
+  kubernetes.io/os: linux
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity:
+  podAntiAffinity:
+    soft:
+      weight: 100
+      topologyKey: kubernetes.io/hostname
+    hard:
+      topologyKey: kubernetes.io/hostname
+
+# GitLab EE license (optional)
+gitlab:
+  license:
+    enabled: false
+
+# LDAP configuration (using external Keycloak)
+gitlab:
+  gitlab.yml:
+    ldap:
+      enabled: false
+    omniauth:
+      enabled: true
+      providers:
+        - secret: gitlab-oauth-secret
+          key: providers
+
+# Extra volumes
+extraVolumes: []
+
+# Extra volume mounts
+extraVolumeMounts: []

@@ -1,0 +1,718 @@
+# Kube Prometheus Stack
+# Helm chart: prometheus-community/kube-prometheus-stack
+# Documentation: https://prometheus-community.github.io/helm-charts
+
+namespace: monitoring
+
+# CRDs
+crds:
+  enabled: true
+
+# Alertmanager
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    replicas: 2
+    minReplicas: 2
+    maxReplicas: 5
+    retention: 120h
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: openebs-hostpath
+          resources:
+            requests:
+              storage: 5Gi
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    securityContext:
+      fsGroup: 2000
+      runAsNonRoot: true
+      runAsUser: 1000
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: alertmanager
+            alertmanager: main
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    hosts:
+      - alertmanager.demo.quximo.com
+    tls:
+      - secretName: alertmanager-tls
+        hosts:
+          - alertmanager.demo.quximo.com
+  config:
+    global:
+      resolve_timeout: 5m
+      smtp_smarthost: ""
+      smtp_from: ""
+      smtp_auth_username: ""
+      smtp_auth_password: ""
+    route:
+      group_by: ["alertname", "cluster", "service"]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: default
+      routes:
+        - match:
+            severity: critical
+          receiver: critical-alerts
+          continue: true
+        - match:
+            severity: warning
+          receiver: warning-alerts
+    receivers:
+      - name: default
+        webhook_configs:
+          - url: http://argocd-notifications:9000/webhook
+            send_resolved: true
+      - name: critical-alerts
+        webhook_configs:
+          - url: http://argocd-notifications:9000/webhook
+            send_resolved: true
+      - name: warning-alerts
+        webhook_configs:
+          - url: http://argocd-notifications:9000/webhook
+            send_resolved: true
+    inhibit_rules:
+      - source_match:
+          severity: critical
+        target_match:
+          severity: warning
+        equal: ["alertname", "cluster", "service"]
+
+# Prometheus
+prometheus:
+  enabled: true
+  prometheusSpec:
+    replicas: 2
+    minReplicas: 2
+    maxReplicas: 10
+    retention: 15d
+    retentionSize: 50GB
+    retentionTime: "15d"
+    enableAdminAPI: true
+    enableFeatures:
+      - agent
+      - exemplar-storage
+      - promql-negative-offset
+    externalLabels:
+      cluster: demo-quximo
+      environment: production
+    ruleSelector:
+      scrapeInterval: 30s
+    ruleNamespaceSelector: {}
+    ruleSelectorMatchnames: []
+    serviceMonitorSelector:
+      scrapeInterval: 30s
+    serviceMonitorNamespaceSelector: {}
+    serviceMonitorSelectorMatchnames: []
+    podMonitorSelector:
+      scrapeInterval: 30s
+    podMonitorNamespaceSelector: {}
+    podMonitorSelectorMatchnames: []
+    probeSelector:
+      scrapeInterval: 30s
+    probeNamespaceSelector: {}
+    probeSelectorMatchnames: []
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: openebs-hostpath
+          resources:
+            requests:
+              storage: 100Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    securityContext:
+      fsGroup: 2000
+      runAsNonRoot: true
+      runAsUser: 1000
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: prometheus
+            prometheus: k8s
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+    podMonitorNamespaceSelector: {}
+    podMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    serviceMonitorSelector: {}
+    probeNamespaceSelector: {}
+    probeSelector: {}
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/auth-type: basic
+      nginx.ingress.kubernetes.io/auth-secret: prometheus-auth
+      nginx.ingress.kubernetes.io/proxy-body-size: 10m
+    hosts:
+      - prometheus.demo.quximo.com
+    tls:
+      - secretName: prometheus-tls
+        hosts:
+          - prometheus.demo.quximo.com
+  additionalScrapeConfigs:
+    - job_name: kubernetes-nodes-cadvisor
+      scrape_interval: 30s
+      scrape_timeout: 10s
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecure_skip_verify: true
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      kubernetes_sd_configs:
+        - role: node
+      relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+        - target_label: __address__
+          replacement: kubernetes.default.svc:443
+        - source_labels: [__meta_kubernetes_node_name]
+          regex: (.+)
+          target_label: __metrics_path__
+          replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+
+# Grafana
+grafana:
+  enabled: true
+  replicas: 2
+  minReplicas: 2
+  maxReplicas: 5
+  
+  image:
+    repository: grafana/grafana
+    tag: "11.5.2"
+    pullPolicy: IfNotPresent
+
+  testFramework:
+    enabled: false
+
+  adminPassword: ""
+  secret: grafana-secret
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/auth-type: basic
+      nginx.ingress.kubernetes.io/auth-secret: grafana-auth
+    hosts:
+      - grafana.demo.quximo.com
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.demo.quximo.com
+
+  persistence:
+    enabled: true
+    storageClassName: openebs-hostpath
+    size: 10Gi
+    accessModes:
+      - ReadWriteOnce
+    finalizers:
+      - kubernetes.io/pvc-protection
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+  securityContext:
+    fsGroup: 472
+    runAsNonRoot: true
+    runAsUser: 472
+    runAsGroup: 472
+    supplementalGroups:
+      - 0
+
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: grafana
+
+  livenessProbe:
+    enabled: true
+    path: /api/health
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 5
+
+  readinessProbe:
+    enabled: true
+    path: /api/health
+    initialDelaySeconds: 30
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  initContainers: []
+
+  sidecar:
+    enabled: true
+    image:
+      repository: quay.io/kiwigrid/k8s-sidecar
+      tag: "1.28.0"
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+  datasources:
+    enabled: true
+    secretName: grafana-datasources
+    uid: prometheus
+
+  dashboardProviders:
+    enabled: true
+    providerName: default
+    providerFolder: dashboards
+
+  dashboards:
+    default:
+      prometheus:
+        gnetId: 12740
+        revision: 1
+        datasource: Prometheus
+      istio:
+        gnetId: 7646
+        revision: 2
+        datasource: Prometheus
+      argocd:
+        url: https://raw.githubusercontent.com/argoproj/argo-cd/master/examples/dashboard.json
+        datasource: Prometheus
+      kubernetes:
+        gnetId: 12740
+        revision: 1
+        datasource: Prometheus
+
+  grafana.ini:
+    server:
+      domain: grafana.demo.quximo.com
+      root_url: https://%(domain)s/
+      serve_from_sub_path: ""
+      enable_gzip: true
+    database:
+      type: postgres
+      host: postgresql.monitoring.svc.cluster.local:5432
+      name: grafana
+      user: grafana
+      password: ""
+      ssl_mode: disable
+      max_open_conns: 100
+      max_idle_conns: 10
+      conn_max_lifetime: 14400
+    security:
+      admin_user: admin
+      disable_gravatar: true
+      cookie_secure: true
+      cookie_samesite: strict
+    auth.anonymous:
+      enabled: false
+    log:
+      mode: console
+      level: info
+    metrics:
+      enabled: true
+      interval: 30s
+    alerting:
+      enabled: true
+
+# Prometheus Operator
+prometheusOperator:
+  enabled: true
+  admissionWebhooks:
+    enabled: true
+    patch:
+      enabled: true
+      image:
+        repository: registry.k8s.io/prometheus-operator/prometheus-operator
+        tag: "v0.78.2"
+        pullPolicy: IfNotPresent
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+  replicas: 1
+  image:
+    repository: registry.k8s.io/prometheus-operator/prometheus-operator
+    tag: "v0.78.2"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  securityContext:
+    fsGroup: 2000
+    runAsNonRoot: true
+    runAsUser: 1000
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 30s
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+  thanosImage:
+    repository: quay.io/thanos/thanos
+    tag: "v0.36.1"
+
+# Kube-state-metrics
+kube-state-metrics:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: registry.k8s.io/kube-state-metrics/kube-state-metrics
+    tag: "v2.15.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  securityContext:
+    fsGroup: 2000
+    runAsNonRoot: true
+    runAsUser: 1000
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 30s
+  rbac:
+    create: true
+
+# Node Exporter
+nodeExporter:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: registry.k8s.io/node-exporter/node-exporter
+    tag: "v1.8.2"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  securityContext:
+    fsGroup: 65534
+    runAsNonRoot: true
+    runAsUser: 65534
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 30s
+
+# Pushgateway
+pushgateway:
+  enabled: false
+
+# Blackbox Exporter
+blackboxExporter:
+  enabled: true
+  installation:
+    enabled: false
+  serviceMonitor:
+    enabled: false
+
+# CoreDNS
+coredns:
+  enabled: true
+  kubeDNS:
+    enabled: true
+
+# Kube API Server
+kubeApiServer:
+  enabled: true
+
+# Kubelet
+kubelet:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    metricRelabelings: []
+
+# Kube Controller Manager
+kubeControllerManager:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+# Kube Scheduler
+kubeScheduler:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+# ETCD
+kubeEtcd:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+# Global defaults
+defaultRules:
+  enabled: true
+  create: true
+  rules:
+    - alertManagerMain
+    - AlertmanagerFailedToSendAlerts
+    - AlertmanagerConfigInconsistent
+    - AlertmanagerDuplicate
+    - etcdInsufficientMembers
+    - etcdNoLeader
+    - etcdHighNumberOfLeaderChanges
+    - etcdHighNumberOfFailedGRPCRequests
+    - etcdGRPCRequestsSlow
+    - etcdServerCourierRequestsSlow
+    - etcdHighNumberOfFailedProposals
+    - etcdHighFsyncDurations
+    - etcdHighCommitDurations
+    - etcdHighNumberOfFailedLeaderProposals
+    - etcdwalFileSystemIssues
+    - etcdHighNumberOfFailedHTTPRequests
+    - etcdHTTPRequestsSlow
+    - etcdMemberCommunicationSlow
+    - etcdHighNumberOfRuleEvaluationsFailed
+    - etcdRequestsSlow
+    - KubeAPIDown
+    - KubeControllerManagerDown
+    - KubeSchedulerDown
+    - KubeStateMetricsDown
+    - KubeletDown
+    - KubeNodeNotReady
+    - KubeNodeUnreachable
+    - KubeletTooManyPods
+    - KubeVersionMismatch
+    - KubeletCRIWatchdogFailures
+    - KubeletMemoryPressure
+    - KubeletDiskPressure
+    - KubeletPlegDurationHigh
+    - KubeletPodWorkerWaitDuration
+    - KubeletStartupProbeFailures
+    - KubeProxyDown
+    - KubeProxyReadWriteDisconnected
+    - KubeProxyNotReachable
+    - NoKubeProxyVersion
+    - KubeAPIServerDown
+    - KubeControllerManagerDown
+    - KubeSchedulerDown
+    - KubeStateMetricsCrashLoopBackOff
+    - KubeStateMetricsReady
+    - KubeStateMetricsUpdateFailed
+    - KubeletDown
+    - KubeletCronJobRecursivelyRetries
+    - KubeletPodQueueRetries
+    - KubeletObservedPodNotifications
+    - KubeletContainerManagerErrors
+    - Kubelet pleg
+    - KubeletCgroupManager
+    - KubeletPhaseNumber
+    - KubeletPodWorker
+    - KubeletClientCertificateExpiration
+    - KubeletServerCertificateExpiration
+    - KubeletClientCertificateRenewalErrors
+    - KubeletServerCertificateRenewalErrors
+    - CPUThrottlingHigh
+    - NodeRAIDDiskFailure
+    - NodeMirrorPod
+    - NodeNetworkColocation
+    - NodeHighNumberConntrackEntriesUsed
+    - NodeClockSkewDetected
+    - NodeTimeNotSynchronized
+    - NodeFilesystemAlmostOutOfFiles
+    - NodeFilesystemFilesFillingUp
+    - NodeFilesystemAlmostOutOfSpace
+    - NodeFilesystemOutOfInodes
+    - NodeMemoryAlmostOutOfFiles
+    - NodeDiskIOSaturation
+    - NodeDiskRunaway
+    - NodeNetworkPortUsage
+    - NodeNetworkReceiveBytesHigh
+    - NodeNetworkTransmitBytesHigh
+    - NodeNetworkReceivePacketsDropped
+    - NodeNetworkTransmitPacketsDropped
+    - PrometheusOperatorListErrors
+    - PrometheusOperatorWatchErrors
+    - PrometheusOperatorReconcileErrors
+    - PrometheusOperatorNodeLookupErrors
+    - PrometheusOperatorNotReady
+    - PrometheusOperatorDaemonSetNotSynced
+    - PrometheusKeyedJobFailed
+    - PrometheusBadConfigurations
+    - PrometheusDuplicateTimestamps
+    - PrometheusOutOfOrderTimestamps
+    - PrometheusRemoteStorageFailures
+    - PrometheusErrorSendingAlertsToAnyAlertmanager
+    - PrometheusErrorSendingAlerts
+    - PrometheusNotConnectedToAlertmanager
+    - PrometheusTSDBReloadsFailing
+    - PrometheusTSDBCompactionsFailing
+    - PrometheusNotIngestingSamples
+    - PrometheusJobExportsFailed
+    - PrometheusJobForwardFailed
+    - PrometheusRemoteWriteBehind
+    - PrometheusRemoteWriteSlow
+    - PrometheusRemoteWriteErrors
+    - PrometheusHighQueryLoad
+    - PrometheusHighQueryRate
+    - PrometheusArchiveNotAccessible
+    - ConfigReloaderSidecarErrors
+    - EtcdInsufficientMembers
+    - Etcd通信故障
+    - EtcdHighNumberOfLeaderChanges
+    - EtcdHighNumberOfFailedGRPCRequests
+    - EtcdGRPCRequestsSlow
+    - EtcdServerCourierRequestsSlow
+    - EtcdHighNumberOfFailedProposals
+    - EtcdHighFsyncDurations
+    - EtcdHighCommitDurations
+    - EtcdHighNumberOfFailedLeaderProposals
+    - Etcd通信写入失败
+    - EtcdHighNumberOfFailedHTTPRequests
+    - EtcdHTTPRequestsSlow
+    - EtcdMemberCommunicationSlow
+    - EtcdHighNumberOfRuleEvaluationsFailed
+    - EtcdRequestsSlow
+    - etcdInsufficientMembers
+    - etcd通信故障
+    - etcdHighNumberOfLeaderChanges
+    - etcdHighNumberOfFailedGRPCRequests
+    - etcdGRPCRequestsSlow
+    - etcdServerCourierRequestsSlow
+    - etcdHighNumberOfFailedProposals
+    - etcdHighFsyncDurations
+    - etcdHighCommitDurations
+    - etcdHighNumberOfFailedLeaderProposals
+    - etcd通信写入失败
+    - etcdHighNumberOfFailedHTTPRequests
+    - etcdHTTPRequestsSlow
+    - etcdMemberCommunicationSlow
+    - etcdHighNumberOfRuleEvaluationsFailed
+    - etcdRequestsSlow
+  disabledRules: []
+
+# Additional Prometheus rules
+additionalPrometheusRules: []
+
+# Additional ServiceMonitors
+additionalServiceMonitors: []
+
+# Additional PodMonitors
+additionalPodMonitors: []
+
+# ServiceMonitor labels
+serviceMonitorLabels: {}
+
+# PodMonitor labels
+podMonitorLabels: {}
+
+# Probe labels
+probeLabels: {}

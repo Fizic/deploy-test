@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: monitoring
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-project
+    app.kubernetes.io/part-of: argocd
+spec:
+  description: Monitoring and observability project
+  sourceRepos:
+    - https://github.com/Fizic/deploy-test.git
+    - https://github.com/Fizic/deploy-test/*
+    - https://prometheus-community.github.io/helm-charts
+    - https://grafana.github.io/helm-charts
+    - https://vmware-tanzu.github.io/helm-charts
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
+    - server: https://kubernetes.default.svc
+      namespace: velero
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  roles:
+    - name: project-admin
+      description: Project admin role
+      policies:
+        - p, proj:monitoring:project-admin, applications, *, */*, allow
+        - p, proj:monitoring:project-admin, clusters, *, */*, allow
+        - p, proj:monitoring:project-admin, repositories, *, */*, allow
+        - p, proj:monitoring:project-admin, projects, *, */*, allow
+      groups:
+        - argocd-admins
+  orphanedResources:
+    warn: false

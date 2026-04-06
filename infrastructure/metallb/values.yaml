@@ -1,0 +1,70 @@
+# MetalLB Configuration
+# Helm chart version: 0.14.x (stable)
+# Documentation: https://metallb.universe.tf/installation/
+
+controller:
+  image:
+    repository: quay.io/metallb/controller
+    tag: latest
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+speaker:
+  image:
+    repository: quay.io/metallb/speaker
+    tag: latest
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+prometheus:
+  scrapeAnnotations: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+
+pools:
+  - name: default
+    addresses:
+      - 192.168.100.110-192.168.100.120
+    autoAssign: true
+    avoidBuggyIPs: true
+
+l2Config:
+  enabled: true
+
+# IP address pool for services
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: default
+  namespace: metallb-system
+spec:
+  addresses:
+    - 192.168.100.110-192.168.100.120
+  autoAssign: true
+  avoidBuggyIPs: true
+
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: default
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - default
+  interfaces:
+    - eth0
+  nodeSelectors:
+    - matchLabels:
+        kubernetes.io/os: linux

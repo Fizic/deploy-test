@@ -1,0 +1,46 @@
+# ResourceQuota for services namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: services-quota
+  namespace: services
+spec:
+  hard:
+    requests.cpu: "16"
+    requests.memory: 32Gi
+    limits.cpu: "32"
+    limits.memory: 64Gi
+    pods: "100"
+    services: "50"
+    persistentvolumeclaims: "50"
+    configmaps: "100"
+    secrets: "100"
+    requests.storage: "500Gi"
+
+---
+# LimitRange for services namespace
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: services-limits
+  namespace: services
+spec:
+  limits:
+    - max:
+        cpu: "8"
+        memory: 16Gi
+      min:
+        cpu: 10m
+        memory: 16Mi
+      default:
+        cpu: 100m
+        memory: 128Mi
+      defaultRequest:
+        cpu: 50m
+        memory: 64Mi
+      type: Container
+    - max:
+        storage: 100Gi
+      min:
+        storage: 1Gi
+      type: PersistentVolumeClaim

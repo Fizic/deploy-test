@@ -1,0 +1,49 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: services
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-project
+    app.kubernetes.io/part-of: argocd
+spec:
+  description: Application services project
+  sourceRepos:
+    - https://github.com/Fizic/deploy-test.git
+    - https://github.com/Fizic/deploy-test/*
+    - https://charts.bitnami.com/bitnami
+    - https://helm.releases.hashicorp.com
+    - https://charts.gitlab.io
+    - https://plane.github.io/helm-charts
+    - https://raw.githubusercontent.com/docmost/helm/refs/heads/main
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: services
+    - server: https://kubernetes.default.svc
+      namespace: keycloak
+    - server: https://kubernetes.default.svc
+      namespace: vault
+    - server: https://kubernetes.default.svc
+      namespace: gitlab
+    - server: https://kubernetes.default.svc
+      namespace: docmost
+    - server: https://kubernetes.default.svc
+      namespace: plane
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  roles:
+    - name: project-admin
+      description: Project admin role
+      policies:
+        - p, proj:services:project-admin, applications, *, */*, allow
+        - p, proj:services:project-admin, clusters, *, */*, allow
+        - p, proj:services:project-admin, repositories, *, */*, allow
+        - p, proj:services:project-admin, projects, *, */*, allow
+      groups:
+        - argocd-admins
+  orphanedResources:
+    warn: false

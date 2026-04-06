@@ -1,0 +1,448 @@
+# Keycloak Configuration
+# Helm chart: bitnami/keycloak (v25.2.0)
+# Documentation: https://artifacthub.io/packages/helm/bitnami/keycloak
+
+namespace: keycloak
+
+# Image settings
+image:
+  registry: docker.io
+  repository: bitnami/keycloak
+  tag: 26.0.5-debian-12-r0
+  digest: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+  debug: false
+
+# Number of replicas
+replicaCount: 2
+
+# Bootstrapper settings (for initial setup)
+bootstrapping:
+  enabled: true
+  administratorUsername: admin
+  administratorPassword: ""
+  realm:
+    name: quximo
+    displayName: Quximo Platform
+    enabled: true
+    registrationAllowed: false
+    loginWithEmailAllowed: true
+    duplicateEmailsAllowed: false
+    resetPasswordAllowed: true
+    editUsernameAllowed: false
+    bruteForceProtected: true
+    permanentLockout: false
+    maxFailureWaitSeconds: 900
+    minimumQuickLoginWaitSeconds: 60
+    waitIncrementSeconds: 60
+    quickLoginCheckMilliSeconds: 1000
+    maxDeltaTimeSeconds: 43200
+    failureFactor: 30
+    # Roles to create
+    roles:
+      - name: default-roles
+        description: "${role_default-roles}"
+        compositeClientRole: false
+        clientRoles: {}
+      - name: admin
+        description: Administrator role
+        composite: false
+        clientRoles: {}
+    # Clients to create
+    clients:
+      - name: argocd
+        enabled: true
+        clientId: argocd
+        clientProtocol: openid-connect
+        publicClient: false
+        secret: argocd-client-secret
+        directAccessGrantsEnabled: true
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        serviceAccountsEnabled: true
+        authorizationServicesEnabled: false
+        redirectUris:
+          - https://argocd.demo.quximo.com/oauth2/callback
+          - https://argocd.demo.quximo.com/*
+        webOrigins:
+          - https://argocd.demo.quximo.com
+        defaultClientScopes:
+          - profile
+          - email
+      - name: gitlab
+        enabled: true
+        clientId: gitlab
+        clientProtocol: openid-connect
+        publicClient: true
+        directAccessGrantsEnabled: false
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        redirectUris:
+          - https://gitlab.demo.quximo.com/users/auth/openid_connect/callback
+        webOrigins:
+          - https://gitlab.demo.quximo.com
+        defaultClientScopes:
+          - profile
+          - email
+          - openid
+
+# Production mode
+production: true
+
+# Database configuration
+database:
+  vendor: postgresql
+  hostname: postgresql.keycloak.svc.cluster.local
+  port: 5432
+  name: keycloak
+  username: keycloak
+  existingSecret: keycloak-db-secret
+  secretKeys:
+    password: KEYCLOAK_DATABASE_PASSWORD
+
+# Service configuration
+service:
+  type: ClusterIP
+  httpPort: 8080
+  httpsPort: 8443
+  clusterIP: ""
+  loadBalancerIP: ""
+  externalTrafficPolicy: Cluster
+  sessionAffinity: ClientIP
+  sessionAffinityConfig: {}
+  healthCheckPorts: []
+  annotations: {}
+  ports:
+    http: 8080
+    https: 8443
+
+# Ingress configuration
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hostname: keycloak.demo.quximo.com
+  path: /
+  pathType: Prefix
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+    nginx.ingress.kubernetes.io/proxy-buffers: "4 256k"
+    nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "256k"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-Forwarded-Host $host;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header X-Forwarded-For $remote_addr;
+      proxy_set_header X-Forwarded-Server $host;
+  tls: true
+  secretName: keycloak-tls
+  existingSecret: ""
+  extraHosts: []
+  extraPaths: []
+  extraTls: []
+
+# Resources
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+
+# Pod scheduling
+podSecurityContext:
+  enabled: true
+  fsGroup: 1001
+  sysctls: []
+
+containerSecurityContext:
+  enabled: true
+  runAsUser: 1001
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+podLabels: {}
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: /metrics
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  maxUnavailable: ""
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Health checks
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 300
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+  successThreshold: 1
+  path: /health/ready
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+  successThreshold: 1
+  path: /health/ready
+
+startupProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+  successThreshold: 1
+  path: /health/ready
+
+# Service account
+serviceAccount:
+  create: true
+  name: keycloak
+  automountServiceAccountToken: false
+  labels: {}
+  annotations: {}
+
+# RBAC
+rbac:
+  create: true
+  rules: []
+
+# Pod affinity
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - keycloak
+          topologyKey: kubernetes.io/hostname
+
+# Node selector and tolerations
+nodeSelector: {}
+tolerations: []
+
+# Topology spread
+topologySpreadConstraints: []
+  # - maxSkew: 1
+  #   topologyKey: topology.kubernetes.io/zone
+  #   whenUnsatisfiable: DoNotSchedule
+  #   labelSelector:
+  #     matchLabels:
+  #       app.kubernetes.io/name: keycloak
+
+# Extra volumes
+extraVolumes: []
+  # - name: custom-config
+  #   configMap:
+  #     name: keycloak-config
+
+# Extra volume mounts
+extraVolumeMounts: []
+  # - name: custom-config
+  #   mountPath: /opt/bitnami/keycloak/conf/keycloak.conf
+  #   subPath: keycloak.conf
+
+# Init containers
+initContainers: []
+  # - name: wait-for-db
+  #   image: busybox:1.36
+  #   command:
+  #     - sh
+  #     - -c
+  #     - |
+  #       until nc -z postgresql.keycloak.svc.cluster.local 5432; do
+  #         echo "Waiting for database..."
+  #         sleep 5
+  #       done
+
+# Lifecycle hooks
+lifecycleHooks:
+  preStop:
+    exec:
+      command:
+        - /opt/bitnami/scripts/keycloak/lifecycle/pre-stop.sh
+  postStart:
+    exec:
+      command:
+        - /opt/bitnami/scripts/keycloak/lifecycle/post-start.sh
+
+# JVM settings
+heap:
+  size: 1024m
+  newSize: 256m
+
+jvmSettings:
+  extraJavaOptions: ""
+  extraJvmOptions: ""
+  maxHeapSize: 1024m
+  minHeapSize: 256m
+
+# Performance tuning
+args: []
+
+# External database (PostgreSQL bundled)
+postgresql:
+  enabled: true
+  auth:
+    username: keycloak
+    password: ""
+    database: keycloak
+    existingSecret: keycloak-db-secret
+    secretKeys:
+      postgresPassword: KEYCLOAK_DATABASE_PASSWORD
+  architecture: standalone
+  primary:
+    persistence:
+      enabled: true
+      storageClass: openebs-hostpath
+      size: 10Gi
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+    service:
+      type: ClusterIP
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    podSecurityContext:
+      enabled: true
+      fsGroup: 1001
+    containerSecurityContext:
+      enabled: true
+      runAsUser: 1001
+      runAsNonRoot: true
+    livenessProbe:
+      enabled: true
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 6
+      successThreshold: 1
+    readinessProbe:
+      enabled: true
+      initialDelaySeconds: 20
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 6
+      successThreshold: 1
+    startupProbe:
+      enabled: true
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 30
+
+# Metrics
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 30s
+    scrapeTimeout: 10s
+    selector: {}
+
+# Configuration
+auth:
+  administratorUser: admin
+  administratorPassword: ""
+  managementUser: ""
+  managementPassword: ""
+
+proxy: edge
+httpEnabled: true
+hostname:
+  strict: false
+  strictBackchannel: false
+
+# TLS
+tls:
+  enabled: true
+  existingSecret: ""
+  keystorePassword: ""
+  truststorePassword: ""
+  autoGenerated: false
+  usePem: false
+
+# Logging
+log:
+  level: INFO
+  stdout: true
+  handlers: console
+
+# Extra environment variables
+extraEnvVars:
+  - name: KC_HEAP_MIN
+    value: "256m"
+  - name: KC_HEAP_MAX
+    value: "1024m"
+  - name: KC_JVM_OPT
+    value: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC"
+  - name: KC_PROXY_HEADERS
+    value: "xforwarded"
+  - name: KC_HTTP_RELATIVE_PATH
+    value: "/"
+
+# Service links
+serviceLinks: true
+
+# Command and args
+command: []
+args: []
+
+# Container ports
+containerPorts:
+  http: 8080
+  https: 8443
+  httpManagement: 9990
+
+# Pod management policy
+podManagementPolicy: Parallel
+
+# Update strategy
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# Wait forPVC
+waitForPVC: false
+
+# Priority class
+priorityClassName: ""
+
+# DNS policy
+dnsPolicy: ""

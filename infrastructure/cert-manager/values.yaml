@@ -1,0 +1,135 @@
+# Cert-Manager Configuration
+# Helm chart version: 1.15.x (stable)
+# Documentation: https://cert-manager.io/docs/
+
+installCRDs: true
+
+replicaCount: 2
+
+image:
+  repository: quay.io/jetstack/cert-manager-controller
+  tag: "v1.15.3"
+  pullPolicy: IfNotPresent
+
+webhook:
+  image:
+    repository: quay.io/jetstack/cert-manager-webhook
+    tag: "v1.15.3"
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+
+cainjector:
+  image:
+    repository: quay.io/jetstack/cert-manager-cainjector
+    tag: "v1.15.3"
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+
+startupapicheck:
+  image:
+    repository: quay.io/jetstack/cert-manager-ctl
+    tag: "v1.15.3"
+    pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: cert-manager
+        app.kubernetes.io/component: controller
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9402"
+  prometheus.io/path: /metrics
+
+serviceAccount:
+  annotations:
+    argocd.argoproj.io/hook-type: SkipDryRunOnGenerateResource
+
+prometheus:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 60s
+    scrapeTimeout: 30s
+    namespace: monitoring
+  podmonitor:
+    enabled: false
+
+webhook:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
+  timeoutSeconds: 30
+
+cainjector:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
+
+securityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+featureGates: ""
+
+volumes:
+  - name: cache
+    emptyDir:
+      sizeLimit: 500Mi
+
+volumeMounts:
+  - name: cache
+    mountPath: /var/cache/cert-manager
+  - name: tmp
+    mountPath: /tmp
+
+global:
+  leaderElection:
+    namespace: kube-system
+    leaseDuration: 60s
+    renewDeadline: 40s
+    retryPeriod: 15s
+    resourceLock: leases
+
+clusterissuer:
+  enabled: true
+  letsencrypt:
+    enabled: true
+    email: admin@demo.quximo.com
+    staging: false
+    solvers:
+      - http01:
+          ingress:
+            class: nginx

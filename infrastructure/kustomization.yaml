@@ -1,0 +1,17 @@
+# Infrastructure Kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - 00-namespaces.yaml
+  - metallb/app.yaml
+  - ingress-nginx/app.yaml
+  - cert-manager/app.yaml
+  - cert-manager/cluster-issuers.yaml
+  - openebs/app.yaml
+  - argocd/app.yaml
+
+namespace: argocd
+
+commonLabels:
+  app.kubernetes.io/managed-by: argocd

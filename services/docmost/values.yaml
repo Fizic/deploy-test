@@ -1,0 +1,153 @@
+# Docmost values
+# Note: This chart requires a PostgreSQL and Redis instance
+
+image:
+  repository: docmost/docmost
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+service:
+  type: ClusterIP
+  port: 3000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+  hosts:
+    - host: docmost.demo.quximo.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: docmost-tls
+      hosts:
+        - docmost.demo.quximo.com
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 1Gi
+
+persistence:
+  enabled: true
+  storageClass: openebs-hostpath
+  size: 5Gi
+  accessMode: ReadWriteOnce
+
+database:
+  host: postgresql.docmost.svc.cluster.local
+  port: 5432
+  name: docmost
+  user: docmost
+  existingSecret: docmost-db-secret
+  secretKey: password
+
+redis:
+  host: redis.docmost.svc.cluster.local
+  port: 6379
+  existingSecret: docmost-redis-secret
+  secretKey: redis-password
+
+app:
+  secretKey: ""
+  existingSecret: docmost-app-secret
+  baseUrl: https://docmost.demo.quximo.com
+  allowSignups: "true"
+
+securityContext:
+  enabled: true
+  fsGroup: 1000
+  runAsUser: 1000
+
+containerSecurityContext:
+  enabled: true
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "3000"
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - docmost
+          topologyKey: kubernetes.io/hostname
+
+# External PostgreSQL
+postgresql:
+  enabled: true
+  auth:
+    username: docmost
+    password: ""
+    database: docmost
+  primary:
+    persistence:
+      enabled: true
+      storageClass: openebs-hostpath
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+# External Redis
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: ""
+  master:
+    persistence:
+      enabled: true
+      storageClass: openebs-hostpath
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
