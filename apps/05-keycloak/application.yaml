@@ -1,0 +1,83 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: infrastructure
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://charts.bitnami.com/bitnami
+    targetRevision: "22.0.0"
+    chart: keycloak
+    helm:
+      values: |
+        global:
+          storageClass: openebs-hostpath
+        image:
+          repository: docker.io/bitnami/keycloak
+          tag: "25.0.7-debian-12-r0"
+        replicaCount: 2
+        proxyAddressForwarding: true
+        production: true
+        https:
+          enabled: true
+          keystoreSecret: keycloak-https-secret
+        ingress:
+          enabled: true
+          ingressClassName: nginx
+          hostname: keycloak.demo.quximo.com
+          annotations:
+            cert-manager.io/cluster-issuer: letsencrypt-prod
+            nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+            nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+          tls: true
+          secrets:
+            - secretName: keycloak-tls
+              hosts:
+                - keycloak.demo.quximo.com
+        metrics:
+          enabled: true
+          serviceMonitor:
+            enabled: true
+        postgresql:
+          enabled: true
+          auth:
+            username: bn_keycloak
+            database: bitnami_keycloak
+          primary:
+            persistence:
+              enabled: true
+              storageClass: openebs-hostpath
+              size: 10Gi
+        containerSecurityContext:
+          enabled: true
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        podSecurityContext:
+          enabled: true
+          fsGroup: 1000
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keycloak
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSync=true
+    retry:
+      limit: 3
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/replicas

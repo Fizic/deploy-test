@@ -1,0 +1,77 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/part-of: infrastructure
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://helm.releases.hashicorp.com
+    targetRevision: "0.27.0"
+    chart: vault
+    helm:
+      values: |
+        global:
+          enabled: true
+          tlsDisable: false
+        injector:
+          enabled: true
+          image:
+            repository: hashicorp/vault-k8s
+            tag: "1.4.1"
+        server:
+          image:
+            repository: hashicorp/vault
+            tag: "1.16.3"
+          ha:
+            enabled: true
+            replicas: 3
+            raft:
+              enabled: true
+              setNodeId: true
+          dataStorage:
+            enabled: true
+            size: 10Gi
+            storageClass: openebs-hostpath
+          auditStorage:
+            enabled: false
+          ingress:
+            enabled: true
+            ingressClassName: nginx
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+              nginx.ingress.kubernetes.io/ssl-redirect: "true"
+            hosts:
+              - host: vault.demo.quximo.com
+            tls:
+              - secretName: vault-tls
+                hosts:
+                  - vault.demo.quximo.com
+          standalone:
+            enabled: false
+        ui:
+          enabled: true
+          service:
+            enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vault
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSync=true
+    retry:
+      limit: 3
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/replicas

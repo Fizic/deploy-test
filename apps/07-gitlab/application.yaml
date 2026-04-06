@@ -1,0 +1,108 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitlab
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: gitlab
+    app.kubernetes.io/part-of: infrastructure
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://gitlab.com/gitlab-org/charts/gitlab
+    targetRevision: "7.12.0"
+    chart: gitlab
+    helm:
+      values: |
+        global:
+          edition: ce
+          hosts:
+            domain: demo.quximo.com
+            externalIP: 192.168.100.110
+            https: true
+          ingress:
+            class: nginx
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+          certificates:
+            secret: gitlab-tls
+            issuer: letsencrypt-prod
+        certmanager:
+          install: false
+        nginx-ingress:
+          enabled: false
+        prometheus:
+          install: false
+        gitlab-runner:
+          install: false
+        registry:
+          enabled: true
+        minio:
+          enabled: true
+          persistence:
+            enabled: true
+            storageClass: openebs-hostpath
+            size: 10Gi
+        postgresql:
+          enabled: true
+          persistence:
+            enabled: true
+            storageClass: openebs-hostpath
+            size: 50Gi
+        redis:
+          enabled: true
+          persistence:
+            enabled: true
+            storageClass: openebs-hostpath
+            size: 5Gi
+        gitlab:
+          webservice:
+            enabled: true
+            replicas: 2
+            ingress:
+              enabled: true
+              annotations:
+                cert-manager.io/cluster-issuer: letsencrypt-prod
+              tls:
+                enabled: true
+            persistence:
+              enabled: true
+              storageClass: openebs-hostpath
+              size: 10Gi
+          sidekiq:
+            enabled: true
+            replicas: 2
+            persistence:
+              enabled: true
+              storageClass: openebs-hostpath
+              size: 10Gi
+          gitaly:
+            enabled: true
+            replicas: 2
+            persistence:
+              enabled: true
+              storageClass: openebs-hostpath
+              size: 50Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitlab
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSync=true
+    retry:
+      limit: 3
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/replicas

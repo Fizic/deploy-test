@@ -1,0 +1,228 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: docmost
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: docmost
+  namespace: docmost
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docmost
+  namespace: docmost
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+  selector:
+    app: docmost
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docmost
+  namespace: docmost
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: docmost
+  template:
+    metadata:
+      labels:
+        app: docmost
+    spec:
+      serviceAccountName: docmost
+      containers:
+        - name: docmost
+          image: docmost/docmost:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: APP_URL
+              value: "https://docs.demo.quximo.com"
+            - name: DATABASE_URL
+              value: "postgresql://postgres:postgres@docmost-db:5432/docmost?schema=public"
+            - name: REDIS_URL
+              value: "redis://docmost-redis:6379"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: docmost-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: docmost-data
+  namespace: docmost
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: openebs-hostpath
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: docmost
+  namespace: docmost
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - docs.demo.quximo.com
+      secretName: docmost-tls
+  rules:
+    - host: docs.demo.quximo.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: docmost
+                port:
+                  number: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docmost-db
+  namespace: docmost
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: docmost-db
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docmost-db
+  namespace: docmost
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docmost-db
+  template:
+    metadata:
+      labels:
+        app: docmost-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          env:
+            - name: POSTGRES_DB
+              value: docmost
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              value: postgres
+          ports:
+            - containerPort: 5432
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          volumeMounts:
+            - name: db-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: docmost-db-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: docmost-db-data
+  namespace: docmost
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: openebs-hostpath
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docmost-redis
+  namespace: docmost
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+  selector:
+    app: docmost-redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docmost-redis
+  namespace: docmost
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docmost-redis
+  template:
+    metadata:
+      labels:
+        app: docmost-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi

@@ -1,0 +1,140 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: elastic-stack
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: elastic-stack
+    app.kubernetes.io/part-of: infrastructure
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://helm.elastic.co
+    targetRevision: "8.15.0"
+    chart: elasticsearch
+    helm:
+      values: |
+        replicas: 3
+        minimumMasterNodes: 2
+        image: docker.elastic.co/elasticsearch/elasticsearch
+        imageTag: "8.15.0"
+        esConfig:
+          elasticsearch.yml: |
+            cluster.name: elastic-cluster
+            discovery.type: multi-node
+            network.host: 0.0.0.0
+            xpack.security.enabled: true
+            xpack.security.enrollment.enabled: true
+            xpack.security.http.ssl.enabled: true
+            xpack.security.transport.ssl.enabled: true
+            xpack.security.transport.ssl.verification_mode: certificate
+        esJvmOptions:
+          xms: 2g
+          xmx: 2g
+        persistence:
+          enabled: true
+          storageClass: openebs-hostpath
+          size: 50Gi
+        resources:
+          requests:
+            cpu: 500m
+            memory: 4Gi
+          limits:
+            cpu: 2
+            memory: 8Gi
+        podSecurityContext:
+          enabled: true
+          fsGroup: 1000
+        securityContext:
+          enabled: true
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+        volumeClaimTemplate:
+          metadata:
+            name: elasticsearch-data
+          spec:
+            storageClassName: openebs-hostpath
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 50Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: elastic
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSync=true
+    retry:
+      limit: 3
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kibana
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: kibana
+    app.kubernetes.io/part-of: infrastructure
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://helm.elastic.co
+    targetRevision: "8.15.0"
+    chart: kibana
+    helm:
+      values: |
+        replicas: 2
+        image: docker.elastic.co/kibana/kibana
+        imageTag: "8.15.0"
+        elasticsearchHosts: "https://elasticsearch-master:9200"
+        ingress:
+          enabled: true
+          className: nginx
+          annotations:
+            cert-manager.io/cluster-issuer: letsencrypt-prod
+            nginx.ingress.kubernetes.io/ssl-redirect: "true"
+            nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+          hosts:
+            - host: kibana.demo.quximo.com
+              paths:
+                - path: /
+          tls:
+            - secretName: kibana-tls
+              hosts:
+                - kibana.demo.quximo.com
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        config:
+          kibana.yml: |
+            server.name: kibana
+            server.host: 0.0.0.0
+            server.publicBaseUrl: https://kibana.demo.quximo.com
+            elasticsearch.hosts:
+              - https://elasticsearch-master:9200
+            monitoring.ui.container.elasticsearch.enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: elastic
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSync=true
+    retry:
+      limit: 3

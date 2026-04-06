@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/part-of: infrastructure
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://charts.jetstack.io
+    targetRevision: "v1.15.3"
+    chart: cert-manager
+    helm:
+      values: |
+        installCRDs: true
+        replicaCount: 2
+        controller:
+          replicaCount: 2
+        webhook:
+          replicaCount: 2
+        cainjector:
+          replicaCount: 2
+        prometheus:
+          enabled: true
+          servicemonitor:
+            enabled: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        containerSecurityContext:
+          allowPrivilegeEscalation: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  ignoreDifferences:
+    - group: cert-manager.io
+      kind: ClusterIssuer
+      jsonPointers:
+        - /spec
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSync=true
+    retry:
+      limit: 3

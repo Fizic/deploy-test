@@ -1,0 +1,26 @@
+global:
+  domain: "demo.quximo.com"
+  email: "cloud@quximo.com"
+  metallb:
+    pool: "192.168.100.110-192.168.100.120"
+  storage:
+    class: "openebs-hostpath"
+  certIssuer:
+    name: "letsencrypt-prod"
+    type: "cluster"
+    acme:
+      server: "https://acme-v02.api.letsencrypt.org/directory"
+      email: "cloud@quximo.com"
+
+argocd:
+  namespace: "argocd"
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: "argocd"
+
+apps:
+  syncPolicy: "automated"
+  syncOptions:
+    - "CreateNamespace=true"
+    - "PrunePropagation=foreground"
+    - "PruneLast=true"

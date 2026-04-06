@@ -1,0 +1,14 @@
+apiVersion: v2
+name: infrastructure-gitops
+description: ArgoCD App-of-Apps for Kubernetes Infrastructure
+type: application
+version: 1.0.0
+appVersion: "1.0"
+keywords:
+  - argocd
+  - app-of-apps
+  - kubernetes
+  - infrastructure
+maintainers:
+  - name: DevOps Team
+    email: cloud@quximo.com

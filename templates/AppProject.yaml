@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: infrastructure
+  namespace: {{ .Values.argocd.namespace | default "argocd" }}
+  labels:
+    app.kubernetes.io/name: infrastructure-project
+    app.kubernetes.io/part-of: argocd
+spec:
+  description: Infrastructure AppProject - manages all cluster applications
+  sourceRepos:
+    - '*'
+  destinations:
+    - namespace: '*'
+      server: '*'
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  namespaceResourceBlacklist:
+    - group: ''
+      kind: ResourceQuota
+    - group: ''
+      kind: LimitRange
+  roles:
+    - name: admin
+      description: Admin role for infrastructure project
+      policies:
+        - 'p, proj:infrastructure:admin, applications, *, infrastructure/*, allow'
+        - 'p, proj:infrastructure:admin, applications, *, */*, allow'
+      groups:
+        - argocd-admins

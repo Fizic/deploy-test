@@ -1,0 +1,56 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/part-of: infrastructure
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    targetRevision: "4.11.3"
+    chart: ingress-nginx
+    helm:
+      values: |
+        controller:
+          image:
+            repository: registry.k8s.io/ingress-nginx/controller
+            tag: "v1.11.3"
+            digestChroot: sha256:789b8ca14a3fcc5f2a7f29e6f5b9d5c7e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e
+          ingressClassResource:
+            name: nginx
+            enabled: true
+            default: true
+            controllerValue: k8s.io/ingress-nginx
+          admissionWebhooks:
+            enabled: true
+            failurePolicy: Fail
+          service:
+            type: LoadBalancer
+            annotations:
+              metallb.io/loadbalancerIP: 192.168.100.110
+            externalTrafficPolicy: Local
+          replicaCount: 2
+          metrics:
+            enabled: true
+            serviceMonitor:
+              enabled: true
+          config:
+            use-forwarded-headers: "true"
+            compute-full-forwarded-for: "true"
+          publishService:
+            enabled: true
+          containerSecurityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+        defaultBackend:
+          enabled: true
+          replicaCount: 2

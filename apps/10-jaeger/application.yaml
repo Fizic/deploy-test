@@ -1,0 +1,74 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jaeger
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/part-of: infrastructure
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://jaegertracing.github.io/helm-charts
+    targetRevision: "1.58.0"
+    chart: jaeger
+    helm:
+      values: |
+        provider: jaeger
+        jaeger:
+          fullname: jaeger
+          replicaCount: 1
+          image:
+            repository: jaegertracing/all-in-one
+            tag: "1.59.1"
+          collector:
+            enabled: true
+            replicas: 1
+            service:
+              type: ClusterIP
+              port: 4317
+              grpcPort: 4317
+              httpPort: 4318
+          query:
+            enabled: true
+            replicas: 1
+            ingress:
+              enabled: true
+              className: nginx
+              annotations:
+                cert-manager.io/cluster-issuer: letsencrypt-prod
+                nginx.ingress.kubernetes.io/ssl-redirect: "true"
+              hosts:
+                - jaeger.demo.quximo.com
+              tls:
+                - secretName: jaeger-tls
+                  hosts:
+                    - jaeger.demo.quximo.com
+          agent:
+            enabled: true
+            replicas: 1
+        storage:
+          type: elasticsearch
+          elasticsearch:
+            enabled: true
+            servers:
+              - https://elasticsearch-master:9200
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: jaeger
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSync=true
+    retry:
+      limit: 3
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
