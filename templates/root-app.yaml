@@ -11,11 +11,11 @@ metadata:
 spec:
   project: infrastructure
   source:
-    repoURL: {{ .Values.spec.source.repoURL | default "https://github.com/Fizic/deploy-test.git" }}
+    repoURL: {{ .Values.argocd.source.repoURL | quote }}
     targetRevision: HEAD
     path: apps
   destination:
-    server: {{ .Values.argocd.destination.server | default "https://kubernetes.default.svc" }}
+    server: {{ .Values.argocd.destination.server | default "https://kubernetes.default.svc" | quote }}
     namespace: {{ .Values.argocd.namespace | default "argocd" }}
   syncPolicy:
     automated:

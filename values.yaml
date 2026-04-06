@@ -17,6 +17,8 @@ argocd:
   destination:
     server: "https://kubernetes.default.svc"
     namespace: "argocd"
+  source:
+    repoURL: "https://github.com/Fizic/infrastructure-gitops.git"
 
 apps:
   syncPolicy: "automated"
