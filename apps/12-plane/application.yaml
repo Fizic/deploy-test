@@ -13,9 +13,9 @@ spec:
   dependsOn:
     - name: cert-manager-issuer
   source:
-    repoURL: https://github.com/Fizic/deploy-test.git
-    targetRevision: HEAD
-    path: apps/12-plane
+    repoURL: https://helm.plane.so
+    targetRevision: "1.5.0"
+    chart: plane/plane-ce
   destination:
     server: https://kubernetes.default.svc
     namespace: plane
