@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-issuer
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: cert-manager-issuer
+    app.kubernetes.io/part-of: infrastructure
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/Fizic/deploy-test.git
+    targetRevision: HEAD
+    path: apps/03-cert-manager/issuer.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  dependsOn:
+    - name: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSync=true
+    retry:
+      limit: 3
