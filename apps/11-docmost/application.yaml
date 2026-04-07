@@ -10,6 +10,8 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: infrastructure
+  dependsOn:
+    - name: cert-manager-issuer
   source:
     repoURL: https://github.com/Fizic/deploy-test.git
     targetRevision: HEAD

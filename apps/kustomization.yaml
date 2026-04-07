@@ -5,7 +5,7 @@ resources:
   - 01-metallb/application.yaml
   - 02-ingress-nginx/application.yaml
   - 03-cert-manager/application.yaml
-  - 03-cert-manager/issuer.yaml
+  - 03-cert-manager/issuer-application.yaml
   - 04-openebs/application.yaml
   - 04-openebs/rbac.yaml
   - 05-keycloak/application.yaml

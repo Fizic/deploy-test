@@ -10,6 +10,8 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: infrastructure
+  dependsOn:
+    - name: cert-manager-issuer
   source:
     repoURL: https://helm.elastic.co
     targetRevision: "8.15.0"
@@ -86,6 +88,8 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: infrastructure
+  dependsOn:
+    - name: cert-manager-issuer
   source:
     repoURL: https://helm.elastic.co
     targetRevision: "8.15.0"

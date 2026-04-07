@@ -10,8 +10,10 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: infrastructure
+  dependsOn:
+    - name: cert-manager-issuer
   source:
-    repoURL: https://gitlab.com/gitlab-org/charts/gitlab
+    repoURL: https://charts.gitlab.io
     targetRevision: "7.12.0"
     chart: gitlab
     helm:

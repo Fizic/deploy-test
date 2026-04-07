@@ -10,8 +10,10 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: infrastructure
+  dependsOn:
+    - name: cert-manager-issuer
   source:
-    repoURL: https://charts.bitnami.com/bitnami
+    repoURL: oci://registry-1.docker.io/bitnamicharts
     targetRevision: "22.0.0"
     chart: keycloak
     helm:
